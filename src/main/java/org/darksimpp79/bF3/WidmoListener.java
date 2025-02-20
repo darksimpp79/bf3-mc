@@ -56,20 +56,26 @@ public class WidmoListener implements Listener {
     }
 
     // Metoda przywołująca psa – teraz pies zostaje na 30 sekund, dzięki czemu możesz go fizycznie zobaczyć
-    public static void summonGhostDog(Player player) {
-        Location spawnLoc = player.getLocation().add(Math.random() - 0.5, 0, Math.random() - 0.5);
-        Wolf dog = (Wolf) player.getWorld().spawnEntity(spawnLoc, EntityType.WOLF);
+    public static void summonGhostDog(Player owner) {
+        // Ustawiamy lokalizację psa w pobliżu gracza (właściciela)
+        Location spawnLoc = owner.getLocation().add(Math.random() - 0.5, 0, Math.random() - 0.5);
+        Wolf dog = (Wolf) owner.getWorld().spawnEntity(spawnLoc, EntityType.WOLF);
+
+        // Ustawienia psa – nie ustawiamy właściciela, aby pies pozostał dziki i agresywny
         dog.setCustomName("§5Pies Widma");
         dog.setCustomNameVisible(true);
-        dog.setAngry(true);
-        // Oznaczamy psa metadanymi, aby wiedzieć, że należy do klasy Widmo
+        dog.setAngry(true);      // Pies jest agresywny
+        dog.setSitting(false);   // Nie siedzi – swobodnie biega
+
+        // Oznaczamy psa metadanymi: zapamiętujemy, kto jest "właścicielem" (używamy tylko do sprawdzenia przy ugryzieniu)
         dog.setMetadata("widmoDog", new FixedMetadataValue(plugin, true));
-        // Przechowujemy UUID właściciela, żeby pies nie atakował swojego gracza
-        dog.setMetadata("owner", new FixedMetadataValue(plugin, player.getUniqueId().toString()));
-        // Ustawiamy zwiększoną prędkość (speed 2)
+        dog.setMetadata("owner", new FixedMetadataValue(plugin, owner.getUniqueId().toString()));
+
+        // Ustawiamy zwiększoną prędkość psa (speed 2)
         if (dog.getAttribute(Attribute.MOVEMENT_SPEED) != null) {
             dog.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(2.0);
         }
+
         // Pies zostaje usunięty po 30 sekundach
         new BukkitRunnable() {
             @Override
@@ -78,27 +84,74 @@ public class WidmoListener implements Listener {
                     dog.remove();
                 }
             }
-        }.runTaskLater(plugin, 3 * 20L);
+        }.runTaskLater(plugin, 30 * 20L); // 30 sekund
+
+        // Zadanie cykliczne: wyszukiwanie najbliższego wroga (gracza, który nie jest właścicielem) i ustawienie go jako celu
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (dog == null || dog.isDead() || !owner.isOnline()) {
+                    cancel();
+                    return;
+                }
+                double radius = 10.0;
+                Player target = null;
+                double closestDistance = Double.MAX_VALUE;
+                for (Player p : dog.getWorld().getPlayers()) {
+                    // Pomijamy właściciela
+                    if (p.getUniqueId().equals(owner.getUniqueId())) continue;
+                    double distance = p.getLocation().distance(dog.getLocation());
+                    if (distance < radius && distance < closestDistance) {
+                        closestDistance = distance;
+                        target = p;
+                    }
+                }
+                if (target != null) {
+                    dog.setTarget(target);
+                } else {
+                    // Jeśli nie ma wrogów w zasięgu – można wyczyścić cel lub pozostawić poprzedni
+                    // dog.setTarget(null);
+                }
+            }
+        }.runTaskTimer(plugin, 0, 20L); // co 1 sekundę
     }
+
 
     // Obsługa ręcznego przywoływania psa za pomocą Totemu Psa
     @EventHandler
     public void onTotemUse(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         ItemStack item = player.getInventory().getItemInMainHand();
+
+        // Sprawdzamy, czy przedmiot w ręce nie jest pusty i czy ma odpowiednią nazwę
         if (item == null || !item.hasItemMeta()) return;
+
         ItemMeta meta = item.getItemMeta();
         if (meta == null || !meta.hasDisplayName()) return;
+
+        // Sprawdzamy, czy to jest "Totem Psa"
         if (meta.getDisplayName().equals("§6 Totem Psa")) {
             long now = System.currentTimeMillis();
             long lastUsed = totemCooldown.getOrDefault(player.getUniqueId(), 0L);
+
+            // Sprawdzamy, czy nie jest jeszcze na cooldownie
             if (now - lastUsed < 60000) { // 1 minuta
                 player.sendMessage(Component.text("Totem Psa jest na cooldownie!").color(NamedTextColor.RED));
+                event.setCancelled(true);  // Anulujemy dalsze przetwarzanie zdarzenia
                 return;
             }
+
+            // Ustawiamy nowy czas użycia totemu
             totemCooldown.put(player.getUniqueId(), now);
+
+            // Przywołujemy psa
             summonGhostDog(player);
+
+            // Informujemy gracza
             player.sendMessage(Component.text("Przywołano psa Widma!").color(NamedTextColor.GREEN));
+
+            // Anulowanie zdarzenia, aby nie wykonywać innych działań związanych z przedmiotem
+            event.setCancelled(true);
         }
     }
 
@@ -119,12 +172,30 @@ public class WidmoListener implements Listener {
                 return;
             }
             mrocznyCienCooldown.put(player.getUniqueId(), now);
-            // Przykładowy efekt – grantujemy graczowi wysoki poziom odporności przez 5 sekund
+
+            // Dodajemy efekt niewidzialności dla gracza
             player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 10 * 20, 4, false, false));
+
+            // Zapisujemy cały ekwipunek gracza
+            ItemStack[] originalInventory = player.getInventory().getContents();
+            ItemStack[] originalArmor = player.getInventory().getArmorContents();
+
+            // Usuwamy cały ekwipunek (ustawiamy na AIR)
+            player.getInventory().clear();
+            player.getInventory().setArmorContents(new ItemStack[4]);
+
+            // Po 10 sekundach (200 ticków) przywracamy ekwipunek
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                // Przywracamy ekwipunek i zbroję
+                player.getInventory().setContents(originalInventory);
+                player.getInventory().setArmorContents(originalArmor);
+            }, 200L);
+
             player.sendMessage(Component.text("Aktywowałeś Mroczny Cień! Jesteś teraz niemal nietykalny.").color(NamedTextColor.GREEN));
-            event.setCancelled(true); // zapobiegamy fizycznemu zużyciu przedmiotu
+            event.setCancelled(true);
         }
     }
+
 
     // Obsługa trafienia specjalną Kosą Widma
     @EventHandler
@@ -153,19 +224,26 @@ public class WidmoListener implements Listener {
         List<?> metaValues = dog.getMetadata("owner");
         if (metaValues.isEmpty()) return;
         String ownerUUID = metaValues.get(0).toString();
+
         if (event.getEntity() instanceof Player) {
             Player victim = (Player) event.getEntity();
+            // Nie atakujemy właściciela
             if (victim.getUniqueId().toString().equals(ownerUUID)) return;
+
+            // Nadajemy efekty: spowolnienie oraz nudności (nausea)
+            victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 15 * 20, 1)); // 15 sekund, poziom 1
+            victim.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 15 * 20, 1));     // 15 sekund, poziom 1
+
+            // Dodatkowo ustawiamy efekt świecenia (glowing) na 15 sekund, aby ofiara była bardziej widoczna
             victim.setGlowing(true);
-            victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 15 * 20, 1));
-            victim.sendMessage(Component.text("Zostałeś ugryziony przez psa Widma!").color(NamedTextColor.DARK_PURPLE));
             new BukkitRunnable() {
                 @Override
                 public void run() {
                     victim.setGlowing(false);
                 }
             }.runTaskLater(plugin, 15 * 20L);
-            victim.setHealth(0);
+
+            victim.sendMessage(Component.text("Zostałeś ugryziony przez psa Widma!").color(NamedTextColor.DARK_PURPLE));
         }
     }
 }

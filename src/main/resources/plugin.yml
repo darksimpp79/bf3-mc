@@ -12,3 +12,6 @@ commands:
   giveammo:
     description: Daje pełne staki amunicji do każdej broni.
     usage: /giveammo
+  granaty:
+    description: Daje wszystkie granaty
+    usage: /granaty

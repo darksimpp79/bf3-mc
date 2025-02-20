@@ -57,6 +57,8 @@ public final class BF3 extends JavaPlugin implements Listener {
             getDataFolder().mkdirs();
         }
         Bukkit.getPluginManager().registerEvents(new WidmoListener(), this);
+        this.getCommand("granaty").setExecutor(new GrenadeCommand(this));
+        Bukkit.getPluginManager().registerEvents(new GrenadeListener(), this);
     }
     public static BF3 getInstance() {
         return instance;

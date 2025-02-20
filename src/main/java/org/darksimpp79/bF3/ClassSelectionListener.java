@@ -44,11 +44,6 @@ public class ClassSelectionListener implements Listener {
                 plugin.stworzCustomItem(Material.YELLOW_DYE, "§e Amunicja", 70, "§aAmunicja AK-47")
         });
 
-        // Zestaw dla klasy "Sniper"
-        classKits.put("Sniper", new ItemStack[]{
-                plugin.stworzCustomItem(Material.BOW, "§e Łuk Snajpera", 1, "§aStrzały z dystansu", "§ePrecyzja")
-        });
-
         // Zestaw dla klasy "Medic"
         classKits.put("Medic", new ItemStack[]{
                 plugin.stworzCustomItem(Material.GOLDEN_APPLE, "§a Apteczka", 3, "§a Leczenie")
@@ -57,7 +52,10 @@ public class ClassSelectionListener implements Listener {
         // Zestaw dla klasy "Grenadier"
         classKits.put("Grenadier", new ItemStack[]{
                 plugin.stworzCustomItem(Material.TNT, "§c Granatnik", 1, "§a Wystrzel granat (co 10s)"),
-                plugin.stworzCustomItem(Material.BOW, "§e Machine Gun", 1, "§a Szybkie strzały", "§a Wysoki RPM")
+                plugin.stworzCustomItem(Material.DIAMOND_HOE, "§e Machine Gun", 1, "§a Szybkie strzały", "§a Wysoki RPM"),
+                // plugin.stworzCustomItem(Material.BLAZE_ROD, "§c Bazooka", 1)
+                plugin.stworzCustomItem(Material.IRON_NUGGET, "§e Amunicja Machine Gun", 200)
+                // plugin.stworzCustomItem(Material.FIRE_CHARGE, "§e Amunicja Bazooka", 6)
         });
 
         // Nowy zestaw dla klasy "Widmo"
@@ -77,13 +75,11 @@ public class ClassSelectionListener implements Listener {
      */
     private Inventory getClassSelectionInventory() {
         Inventory inventory = Bukkit.createInventory(null, 9, "§a Wybierz swoją klasę");
-
+        inventory.setItem(3, createClassItem(Material.ENDER_PEARL, "Widmo", "👻 Duchowa moc", "⚡ Ultry: przywołanie psa", "✨ Faza przez bloki"));
         inventory.setItem(1, createClassItem(Material.IRON_SWORD, "Assassin", "⚔ Szybki atak", "💨 Mobilność"));
-        inventory.setItem(3, createClassItem(Material.BOW, "Sniper", "🏹 Strzały z dystansu", "🎯 Precyzja"));
         inventory.setItem(5, createClassItem(Material.GOLDEN_APPLE, "Medic", "💉 Leczenie", "🛡 Wsparcie"));
         inventory.setItem(7, createClassItem(Material.TNT, "Grenadier", "💥 Obrażenia obszarowe", "🔥 Siła wybuchu"));
         // Dodajemy ikonę dla klasy Widmo – przykładowo Ender Pearl
-        inventory.setItem(0, createClassItem(Material.ENDER_PEARL, "Widmo", "👻 Duchowa moc", "⚡ Ultry: przywołanie psa", "✨ Faza przez bloki"));
         return inventory;
     }
 
@@ -140,10 +136,10 @@ public class ClassSelectionListener implements Listener {
 
         if ("Assassin".equals(selectedClass)) {
             // inicjalizacja amunicji itp.
-            player.sendActionBar(Component.text("🔫 Amunicja: 30/30").color(NamedTextColor.GREEN));
+
         } else if ("Grenadier".equals(selectedClass)) {
             // inicjalizacja Machine Gun (przykładowo)
-            player.sendActionBar(Component.text("🔫 Machine Gun Ammo: 120/400").color(NamedTextColor.GREEN));
+
         } else if ("Widmo".equals(selectedClass)) {
             // Rejestrujemy gracza jako Widmo – dzięki temu nasz WidmoListener zacznie obsługiwać jego ultry
             WidmoListener.addWidmo(player);
@@ -171,6 +167,8 @@ public class ClassSelectionListener implements Listener {
         Player player = event.getPlayer();
         playerClasses.remove(player.getUniqueId());
         WidmoListener.removeWidmo(player);
+        player.clearActivePotionEffects();
+        player.getInventory().clear();
         Bukkit.getScheduler().runTaskLater(BF3.getInstance(), () -> {
             player.setGameMode(GameMode.SPECTATOR);
             player.openInventory(getClassSelectionInventory());
