@@ -1,0 +1,14 @@
+name: BF3
+version: '1.0'
+main: org.darksimpp79.bF3.BF3
+api-version: '1.21'
+commands:
+  pixa:
+    description: Generuje losowe efekty.
+    usage: /pixa
+  giveweapons:
+    description: Daje wszystkie bronie
+    usage: /giveweapons
+  giveammo:
+    description: Daje pełne staki amunicji do każdej broni.
+    usage: /giveammo
